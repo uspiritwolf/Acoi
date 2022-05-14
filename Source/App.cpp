@@ -1,10 +1,12 @@
-#include "StdAfx.h"
+#include "Core.h"
 #include "App.h"
 
 #include <GLFW/glfw3.h>
 
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw.h"
+
+App* App::s_instance = nullptr;
 
 struct ScopeContext
 {
@@ -36,14 +38,68 @@ struct ScopeContext
 	}
 };
 
+struct ScopeFpsLock
+{
+	const double LockFrameTime;
+
+	double FrameTime = 0.0;
+	double CurrentTime = 0.0;
+	double IdleTime = 0.0;
+
+	bool MustRender = false;
+
+	ScopeFpsLock(double lockFrameTime)
+		: LockFrameTime(lockFrameTime)
+	{
+
+	}
+
+	void UpdateTime(double time)
+	{
+		if (CurrentTime > 0.0)
+		{
+			const double newFrameTime = time - CurrentTime;
+			if (newFrameTime >= LockFrameTime)
+			{
+				FrameTime = newFrameTime;
+				CurrentTime = time;
+				MustRender = true;
+			}
+			else
+			{
+				IdleTime = newFrameTime;
+				MustRender = false;
+			}
+		}
+		else
+		{
+			CurrentTime = time;
+			FrameTime = LockFrameTime;
+			MustRender = true;
+		}
+	}
+
+	operator bool() const 
+	{
+		return MustRender;
+	}
+};
+
 App::App()
 {
+	if (s_instance)
+		throw std::exception("There can only be one app!");
+
+	s_instance = this;
+
 	CreateGLFWObjects();
 	CreateImGui();
 }
 
 App::~App()
 {
+	s_instance = nullptr;
+
 	if(Window)
 	{
 		glfwDestroyWindow(Window);
@@ -58,47 +114,74 @@ App::~App()
 	}
 }
 
-void App::Run(const TRenderCallback renderCallback)
+void App::Run(TUserRenderCallback userRenderCallback)
 {
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-	glfwWindowHint(GLFW_SAMPLES, 8);
+	UserRenderCallback = std::move(userRenderCallback);
 
-	glfwSwapInterval(1);
+	const auto windowUpdateCallback = [](GLFWwindow* window, int _, int __)
+		{
+			App* app = static_cast<App*>(glfwGetWindowUserPointer(window));
+			app->UpdateWindow();
+		};
 
-	auto clearDisplay = [this]()
-	{
-		static ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-		int displayW, displayH;
-		glfwGetFramebufferSize(Window, &displayW, &displayH);
-		glViewport(0, 0, displayW, displayH);
-		glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
-		glClear(GL_COLOR_BUFFER_BIT);
-	};
+	glfwSetWindowUserPointer(Window, this);
+	glfwSetWindowPosCallback(Window, windowUpdateCallback);
+	glfwSetWindowSizeCallback(Window, windowUpdateCallback);
 
 	if (ScopeContext _ = ScopeContext(ImGuiCtx))
 	{
 		while (!glfwWindowShouldClose(Window))
 		{
 			glfwPollEvents();
-
-			ImGui_ImplOpenGL3_NewFrame();
-			ImGui_ImplGlfw_NewFrame();
-			ImGui::NewFrame();
-
-			renderCallback();
-
-			ImGui::Render();
-
-			clearDisplay();
-
-			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-			glfwSwapBuffers(Window);
+			UpdateWindow();
 		}
 	}
+
+	glfwSetWindowPosCallback(Window, nullptr);
+	glfwSetWindowUserPointer(Window, nullptr);
+}
+
+void App::UpdateWindow()
+{
+	FpsLock->UpdateTime(glfwGetTime());
+
+	if (*FpsLock)
+	{
+		if(!Tasks.empty())
+		{
+			TaskMutex.lock();
+			const auto tasks = std::move(Tasks);
+			TaskMutex.unlock();
+			for(auto& task : tasks)
+			{
+				task();
+			}
+		}
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		UserRenderCallback();
+
+		ImGui::Render();
+
+		ClearDisplay();
+
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		glfwSwapBuffers(Window);
+	}
+}
+
+void App::ClearDisplay() const
+{
+	static ImVec4 clearColor = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+	int displayW, displayH;
+	glfwGetFramebufferSize(Window, &displayW, &displayH);
+	glViewport(0, 0, displayW, displayH);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
 }
 
 void App::CreateGLFWObjects()
@@ -113,13 +196,38 @@ void App::CreateGLFWObjects()
 	const int width = static_cast<int>(mode->width * 0.70);
 	const int height = static_cast<int>(mode->height * 0.70);
 
-	Window = glfwCreateWindow(width, height, "App", nullptr, nullptr);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	glfwWindowHint(GLFW_SAMPLES, 8);
+
+	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
+	glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+	glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+	glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+	glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+	glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
+
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
+
+	glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+
+	glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
+	
+	Window = glfwCreateWindow(width, height, "VoA", nullptr, nullptr);
 	if (!Window)
 	{
 		throw std::exception("Failed create window");
 	}
 
 	glfwMakeContextCurrent(Window);
+
+	glfwSwapInterval(0);
+
+	FpsLock = std::make_unique<ScopeFpsLock>(1.0 / mode->refreshRate);
 }
 
 void App::CreateImGui()
@@ -156,4 +264,11 @@ void App::CreateImGui()
 			style.AntiAliasedLines = true;
 		}
 	}
+}
+
+void App::DispatchInMainThread(const std::function<void()>& task)
+{
+	TaskMutex.lock();
+	Tasks.emplace_back(task);
+	TaskMutex.unlock();
 }
