@@ -9,15 +9,25 @@
 #include <commdlg.h>
 #endif
 
+using namespace Utils;
 
-FileDialog::FileDialog(const OnOpenFile& callback, const char* filter)
-{
-	GLFWwindow* wnd = App::GetInstance()->GetWindow();
-
-	auto bgTask = [wnd, filter, callback]()
-	{
 #if defined(WIN32)
-		const HWND hwndOwner = glfwGetWin32Window(wnd);
+struct SWin32FileDialog
+{
+	GLFWwindow* Window;
+	
+	const char* Filter;
+
+	SWin32FileDialog(GLFWwindow* win, const char* filter)
+		: Window(win)
+		, Filter(filter)
+	{
+		
+	}
+
+	SOpenFileResult operator()() const
+	{
+		const HWND hwndOwner = glfwGetWin32Window(Window);
 
 		char szFile[260];
 		OPENFILENAME ofn = {};
@@ -26,7 +36,7 @@ FileDialog::FileDialog(const OnOpenFile& callback, const char* filter)
 		ofn.lpstrFile = szFile;
 		ofn.lpstrFile[0] = '\0';
 		ofn.nMaxFile = sizeof(szFile);
-		ofn.lpstrFilter = filter;
+		ofn.lpstrFilter = Filter;
 		ofn.nFilterIndex = 1;
 		ofn.lpstrFileTitle = nullptr;
 		ofn.nMaxFileTitle = 0;
@@ -34,54 +44,37 @@ FileDialog::FileDialog(const OnOpenFile& callback, const char* filter)
 		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 		const bool ok = GetOpenFileNameA(&ofn);
 
-		std::string error;
-		std::string path;
-		auto result = FileDialogResult::Ok;
+		SOpenFileResult payload;
+		payload.Code = EnumFileDialogCode::Ok;
 
 		if (ok)
 		{
-			path = ofn.lpstrFile;
+			payload.Path = ofn.lpstrFile;
 		}
 		else
 		{
 			const DWORD errorCode = CommDlgExtendedError();
 			if (errorCode)
 			{
-				error = std::string("Error Code: ") + std::to_string(errorCode);
-				result = FileDialogResult::Failed;
+				payload.ErrorStr = (std::string("Error Code: ") + std::to_string(errorCode));
+				payload.Code = EnumFileDialogCode::Failed;
 			}
 			else
 			{
-				result = FileDialogResult::Canceled;
+				payload.Code = EnumFileDialogCode::Canceled;
 			}
 		}
 
-		auto task = [callback, result, error, path]()
-		{
-			if (callback)
-			{
-				callback(result, path, error);
-			}
-		};
-
-		App::GetInstance()->DispatchInMainThread(task);
-#endif
-	};
-
-	Background = std::thread(bgTask);
-}
-
-FileDialog::~FileDialog()
-{
-	if (Background.joinable())
-	{
-		Background.join();
+		return payload;
 	}
-}
+};
+#endif
 
-FileDialog FileDialog::OpenFile(const OnOpenFile& callback, const char* filter)
+OpenFileFuture Utils::OpenFileDialog(const char* filter)
 {
-	if (!callback)
-		return {};
-	return { callback, filter };
+	GLFWwindow* wnd = App::GetInstance()->GetWindow();
+
+#if defined(WIN32)
+		return std::async(std::launch::async, SWin32FileDialog(wnd, filter));
+#endif
 }

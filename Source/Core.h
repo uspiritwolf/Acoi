@@ -8,6 +8,7 @@
 #include <string>
 #include <atomic>
 #include <mutex>
+#include <future>
 
 #if defined(WIN32)
 #include <Windows.h>

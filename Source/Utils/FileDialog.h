@@ -1,44 +1,24 @@
 #pragma once
 
-enum class FileDialogResult
+namespace Utils
 {
-	Failed,
-	Canceled,
-	Ok
-};
-
-using FilePathString = std::string;
-
-using FileErrorString = const std::string;
-
-using OnOpenFile = std::function<void(FileDialogResult, const FilePathString&, FileErrorString&)>;
-
-class FileDialog
-{
-	std::thread Background;
-
-public:
-
-	FileDialog() = default;
-
-	FileDialog(const OnOpenFile& callback, const char* filter);
-
-	FileDialog(const FileDialog& copy) = delete;
-
-	FileDialog& operator=(const FileDialog& copy) = delete;
-
-	FileDialog& operator=(FileDialog&& move) noexcept
+	enum class EnumFileDialogCode
 	{
-		std::swap(Background, move.Background);
-		return *this;
-	}
+		None,
+		Failed,
+		Canceled,
+		Ok
+	};
 
-	FileDialog(FileDialog&& move) noexcept
+	struct SOpenFileResult
 	{
-		std::swap(Background, move.Background);
-	}
+		EnumFileDialogCode	Code = EnumFileDialogCode::None;
+		std::string			Path;
+		std::string			ErrorStr;
+	};
 
-	~FileDialog();
+	using OpenFileFuture = std::future<SOpenFileResult>;
 
-	static FileDialog OpenFile(const OnOpenFile& callback, const char* filter = "All Files\0*.*\0");
-};
+	OpenFileFuture OpenFileDialog(const char* filter = "All Files\0*.*\0");
+
+}
