@@ -22,18 +22,15 @@ struct SDnnData
 	TextDetectionModel_EAST		detector;
 	TextRecognitionModel		recognizer;
 
-	float ConfidenceThreshold = 0.5f;
-	float NmsThreshold = 0.4f;
-
 	SDnnData(const std::string& detModelPath, const std::string& recModelPath)
 		: detector(detModelPath)
 		, recognizer(recModelPath)
 	{
 	}
 
-	void UpdateConfig()
+	void UpdateConfig(float confidenceThreshold, float nmsThreshold)
 	{
-		detector.setConfidenceThreshold(ConfidenceThreshold).setNMSThreshold(NmsThreshold);
+		detector.setConfidenceThreshold(confidenceThreshold).setNMSThreshold(nmsThreshold);
 
 		recognizer.setVocabulary({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
 			, "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
@@ -67,8 +64,6 @@ void ETextDetection::Update()
 		if (result.Code == Utils::EnumFileDialogCode::Ok)
 		{
 			ImagePath = result.Path;
-			Progress = 0.0f;
-			RecognitionFuture = LoadAndRecognize(ImagePath);
 		}
 	}
 
@@ -185,23 +180,40 @@ void ETextDetection::Render()
 
 	ImGui::Separator();
 
+	if(ImGui::CollapsingHeader("Detection Config"))
+	{
+		ImGui::DragFloat("Detection confidence threshold", &ConfidenceThreshold, 0.01f);
+		ImGui::DragFloat("Detection NMS filter threshold", &NmsFilterThreshold, 0.01f);
+	}
+
+	ImGui::Separator();
+
 	{
 		ImGui::BeginDisabled(DnnData == nullptr || RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout);
+
 		if (ImGui::Button("Select File##3"))
 		{
 			ImageOpenFileFuture = Utils::OpenFileDialog("Image\0*.jpg;*.png;*.jpeg;*.tiff\0");
 		}
 		ImGui::SameLine(); ImGui::InputText("Image", &ImagePath, ImGuiInputTextFlags_ReadOnly);
-		ImGui::EndDisabled();
 
-		if(RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout)
+		ImGui::Separator();
+
+		if (ImGui::Button("Recognize"))
 		{
-			ImGui::Separator();
-			ImGui::ProgressBar(Progress);
+			RecognitionFuture = LoadAndRecognize(ImagePath);
 		}
+
+		ImGui::EndDisabled();
 	}
 
-	RenderImage();
+	{
+		if (RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout)
+		{
+			ImGui::ProgressBar(Progress);
+		}
+		RenderImage();
+	}
 
 	ImGui::End();
 
@@ -260,10 +272,12 @@ void ETextDetection::RenderImage()
 
 std::future<SRecognitionResult> ETextDetection::LoadAndRecognize(const std::string& imagePath)
 {
+	Progress = 0.0f;
+
 	if (DnnData == nullptr)
 		return {};
 
-	DnnData->UpdateConfig();
+	DnnData->UpdateConfig(ConfidenceThreshold, NmsFilterThreshold);
 
 	auto task = [this, imagePath]()
 	{

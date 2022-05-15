@@ -41,6 +41,10 @@ class ETextDetection : public EditorInterface
 
 	float Progress = 0.0f;
 
+	float ConfidenceThreshold = 0.5f;
+
+	float NmsFilterThreshold = 0.4f;
+
 public:
 
 	ETextDetection();
