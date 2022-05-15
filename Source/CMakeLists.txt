@@ -14,7 +14,7 @@ set(OPENCV_HEADERS
  "${OpenCV_SOURCE_DIR}/modules/dnn/include"
  "${OpenCV_SOURCE_DIR}/modules/flann/include")
 
-include_directories("${CMAKE_SOURCE_DIR}/Source" ${IMGUI_PATH} ${OPENCV_HEADERS} ${VoA_BINARY_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/Source" ${IMGUI_PATH} ${OPENCV_HEADERS} ${Acoi_BINARY_DIR})
 
 file(GLOB_RECURSE IMGUI_SRC "${IMGUI_PATH}/*.cpp")
 
@@ -31,7 +31,7 @@ set(EDITOR_SOURCES
  "Editor/EditorInterface.h"
  "Editor/OpenCV/TextDetection.h" "Editor/OpenCV/TextDetection.cpp")
 
-add_executable (VoA
+add_executable (Acoi
  "Core.h"
  "Main.cpp"
  "App.h" "App.cpp"
@@ -41,9 +41,9 @@ add_executable (VoA
  ${EDITOR_SOURCES}
  ${GRAPHICS_SOURCES})
 
-target_link_libraries(VoA glfw)
+target_link_libraries(Acoi glfw)
 
-target_link_libraries(VoA 
+target_link_libraries(Acoi 
  opencv_core
  opencv_gapi
  opencv_imgcodecs
@@ -57,12 +57,12 @@ target_link_libraries(VoA
 
 find_package(OpenGL REQUIRED)
 
-target_link_libraries(VoA OpenGL::GL)
+target_link_libraries(Acoi OpenGL::GL)
 
 
 IF(WIN32)
-	set_target_properties(VoA PROPERTIES WIN32_EXECUTABLE TRUE)
+	set_target_properties(Acoi PROPERTIES WIN32_EXECUTABLE TRUE)
 	add_definitions(-DGLFW_EXPOSE_NATIVE_WIN32)
 ENDIF()
 
-target_precompile_headers(VoA PRIVATE "Core.h")
+target_precompile_headers(Acoi PRIVATE "Core.h")

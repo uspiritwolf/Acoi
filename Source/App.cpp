@@ -228,7 +228,7 @@ void App::CreateGLFWObjects()
 
 	glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
 	
-	Window = glfwCreateWindow(width, height, "VoA", nullptr, nullptr);
+	Window = glfwCreateWindow(width, height, "Acoi - A Collection of Implementations", nullptr, nullptr);
 	if (!Window)
 	{
 		throw std::exception("Failed create window");
