@@ -19,8 +19,8 @@ using namespace cv::dnn;
 
 struct SDnnData
 {
-	TextDetectionModel_EAST detector;
-	TextRecognitionModel recognizer;
+	TextDetectionModel_EAST		detector;
+	TextRecognitionModel		recognizer;
 
 	float ConfidenceThreshold = 0.5f;
 	float NmsThreshold = 0.4f;
@@ -29,7 +29,6 @@ struct SDnnData
 		: detector(detModelPath)
 		, recognizer(recModelPath)
 	{
-		UpdateConfig();
 	}
 
 	void UpdateConfig()
@@ -47,10 +46,10 @@ struct SDnnData
 		const Size recInputSize = Size(100, 32);
 		recognizer.setInputParams(recScale, recInputSize, recMean);
 
-		double detScale = 1.0;
-		Size detInputSize = Size(320, 320);
-		Scalar detMean = Scalar(123.68, 116.78, 103.94);
-		bool swapRB = true;
+		constexpr double detScale = 1.0;
+		const Size detInputSize = Size(320, 320);
+		const Scalar detMean = Scalar(123.68, 116.78, 103.94);
+		const bool swapRB = true;
 		detector.setInputParams(detScale, detInputSize, detMean, swapRB);
 
 	}
@@ -60,6 +59,52 @@ ETextDetection::ETextDetection()
 {
 }
 
+void ETextDetection::Update()
+{
+	if(ImageOpenFileFuture.valid() && ImageOpenFileFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+	{
+		const Utils::SOpenFileResult result = ImageOpenFileFuture.get();
+		if (result.Code == Utils::EnumFileDialogCode::Ok)
+		{
+			ImagePath = result.Path;
+			Progress = 0.0f;
+			RecognitionFuture = LoadAndRecognize(ImagePath);
+		}
+	}
+
+	if (RecognizerOpenFileFuture.valid() && RecognizerOpenFileFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+	{
+		const Utils::SOpenFileResult result = RecognizerOpenFileFuture.get();
+		if (result.Code == Utils::EnumFileDialogCode::Ok)
+		{
+			RecognizerModelPath = result.Path;
+		}
+	}
+
+	if (DetectorOpenFileFuture.valid() && DetectorOpenFileFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+	{
+		const Utils::SOpenFileResult result = DetectorOpenFileFuture.get();
+		if (result.Code == Utils::EnumFileDialogCode::Ok)
+		{
+			DetectorModelPath = result.Path;
+		}
+	}
+
+	if(RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+	{
+		try
+		{
+			const auto result = RecognitionFuture.get();
+			ImageTex.LoadBGR(result.Image);
+			RecognizedText = result.RecognizedText;
+		}
+		catch(const std::exception& ex)
+		{
+			LastError = ex.what();
+		}
+	}
+}
+
 void ETextDetection::Render()
 {
 	if (!ImGui::Begin("Text Detection", &Visibility, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar))
@@ -67,6 +112,8 @@ void ETextDetection::Render()
 		ImGui::End();
 		return;
 	}
+
+	Update();
 
 	if(ImGui::BeginMenuBar())
 	{
@@ -94,26 +141,14 @@ void ETextDetection::Render()
 		ImGui::BeginDisabled(DnnData != nullptr);
 		if (ImGui::Button("Select##1"))
 		{
-			FdInstance = FileDialog::OpenFile([this](FileDialogResult result, const FilePathString& path, FileErrorString& error)
-				{
-					if (result == FileDialogResult::Ok)
-					{
-						DetectorModelPath = path;
-					}
-				}, "Detector model (.pb)\0*.pb\0");
+			DetectorOpenFileFuture = Utils::OpenFileDialog( "Detector model (.pb)\0*.pb\0");
 		}
 
 		ImGui::SameLine(); ImGui::InputTextWithHint("Detector Model", "Select .pb file", &DetectorModelPath, ImGuiInputTextFlags_ReadOnly);
 
 		if (ImGui::Button("Select##2"))
 		{
-			FdInstance = FileDialog::OpenFile([this](FileDialogResult result, const FilePathString& path, FileErrorString& error)
-				{
-					if (result == FileDialogResult::Ok)
-					{
-						RecognizerModelPath = path;
-					}
-				}, "Recognition model (.onnx)\0*.onnx\0");
+			RecognizerOpenFileFuture = Utils::OpenFileDialog("Recognition model (.onnx)\0*.onnx\0");
 		}
 		ImGui::SameLine(); ImGui::InputTextWithHint("Recognizer Model", "Select .onnx file", &RecognizerModelPath, ImGuiInputTextFlags_ReadOnly);
 		ImGui::EndDisabled();
@@ -151,20 +186,19 @@ void ETextDetection::Render()
 	ImGui::Separator();
 
 	{
-		ImGui::BeginDisabled(DnnData == nullptr);
+		ImGui::BeginDisabled(DnnData == nullptr || RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout);
 		if (ImGui::Button("Select File##3"))
 		{
-			FdInstance = FileDialog::OpenFile([this](FileDialogResult result, const FilePathString& path, FileErrorString& error)
-				{
-					if (result == FileDialogResult::Ok)
-					{
-						ImagePath = path;
-						LoadImgEx(ImagePath);
-					}
-				}, "Image\0*.jpg;*.png;*.jpeg;*.tiff\0");
+			ImageOpenFileFuture = Utils::OpenFileDialog("Image\0*.jpg;*.png;*.jpeg;*.tiff\0");
 		}
 		ImGui::SameLine(); ImGui::InputText("Image", &ImagePath, ImGuiInputTextFlags_ReadOnly);
 		ImGui::EndDisabled();
+
+		if(RecognitionFuture.valid() && RecognitionFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout)
+		{
+			ImGui::Separator();
+			ImGui::ProgressBar(Progress);
+		}
 	}
 
 	RenderImage();
@@ -224,107 +258,110 @@ void ETextDetection::RenderImage()
 	}
 }
 
-void ETextDetection::LoadImgEx(const std::string& imagePath)
+std::future<SRecognitionResult> ETextDetection::LoadAndRecognize(const std::string& imagePath)
 {
-	try
-	{
-		LoadImg(imagePath);
-	}
-	catch(const std::exception& ex)
-	{
-		LastError = ex.what();
-	}
-}
+	if (DnnData == nullptr)
+		return {};
 
-void ETextDetection::LoadImg(const std::string& imagePath)
-{
-	const cv::Mat frame = cv::imread(imagePath, IMREAD_COLOR);
+	DnnData->UpdateConfig();
 
-	std::vector< std::vector<Point> > detResults;
-	DnnData->detector.detect(frame, detResults);
-
+	auto task = [this, imagePath]()
 	{
-		struct ComparePoints
+		Mat frame = imread(imagePath, IMREAD_COLOR);
+
+		std::vector< std::vector<Point> > detResults;
+		DnnData->detector.detect(frame, detResults);
+
 		{
-			bool operator()(const Point& a, const Point& b) const
+			struct ComparePoints
 			{
-				return (a.y == b.y) ? (a.x < b.x) : (a.y < b.y);
-			}
-		};
-
-		struct CompareQuadrangles
-		{
-			double DistanceThreshold = 1.0;
-
-			CompareQuadrangles(double distanceThreshold)
-				: DistanceThreshold(distanceThreshold)
-			{}
-
-			bool operator()(const std::vector<Point>& a, const std::vector<Point>& b) const
-			{
-				const double yCenterA = (a[0].y + a[2].y) * 0.5;
-				const double yCenterB = (b[0].y + b[2].y) * 0.5;
-				const bool compareByX = std::abs(yCenterA - yCenterB) < DistanceThreshold;
-				return (compareByX) ? (a[0].x < b[0].x) : (a[0].y < b[0].y);
-			}
-		};
-
-		double averageHeight = 0.0;
-		for (auto points: detResults)
-		{
-			std::sort(points.begin(), points.end(), ComparePoints());
-			averageHeight += std::abs(points[2].y - points[0].y);
-		}
-		averageHeight = averageHeight / static_cast<double>(detResults.size());
-
-		std::sort(detResults.begin(), detResults.end(), CompareQuadrangles(averageHeight * 0.5));
-	}
-
-	std::stringstream stringStream;
-
-	if(!detResults.empty())
-	{
-		Mat recInput;
-		cvtColor(frame, recInput, cv::COLOR_BGR2GRAY);
-
-		auto fourPointsTransform = [](const Mat& frame, const Point2f vertices[], Mat& result)
-		{
-			const Size outputSize = Size(100, 32);
-			const Point2f targetVertices[4] = {
-				Point(0, outputSize.height - 1),
-				Point(0, 0), Point(outputSize.width - 1, 0),
-				Point(outputSize.width - 1, outputSize.height - 1)
-			};
-			const Mat rotationMatrix = getPerspectiveTransform(vertices, targetVertices);
-			warpPerspective(frame, result, rotationMatrix, outputSize);
-		};
-
-		float prevY = 0.0f;
-		for (auto& quadrangle : detResults)
-		{
-			std::vector<Point2f> quadrangle_2f;
-			quadrangle_2f.reserve(4);
-			for (int j = 0; j < 4; j++)
-				quadrangle_2f.emplace_back(quadrangle[j]);
-
-			Mat cropped;
-			fourPointsTransform(recInput, &quadrangle_2f[0], cropped);
-
-			if (prevY > 0)
-			{
-				if (quadrangle_2f[1].y > prevY)
+				bool operator()(const Point& a, const Point& b) const
 				{
-					stringStream << "\n";
+					return (a.y == b.y) ? (a.x < b.x) : (a.y < b.y);
 				}
+			};
+
+			struct CompareQuadrangles
+			{
+				double DistanceThreshold = 1.0;
+
+				CompareQuadrangles(double distanceThreshold)
+					: DistanceThreshold(distanceThreshold)
+				{}
+
+				bool operator()(const std::vector<Point>& a, const std::vector<Point>& b) const
+				{
+					const double yCenterA = (a[0].y + a[2].y) * 0.5;
+					const double yCenterB = (b[0].y + b[2].y) * 0.5;
+					const bool compareByX = std::abs(yCenterA - yCenterB) < DistanceThreshold;
+					return (compareByX) ? (a[0].x < b[0].x) : (a[0].y < b[0].y);
+				}
+			};
+
+			double averageHeight = 0.0;
+			for (auto points : detResults)
+			{
+				std::sort(points.begin(), points.end(), ComparePoints());
+				averageHeight += std::abs(points[2].y - points[0].y);
 			}
-			prevY = quadrangle_2f[3].y;
+			averageHeight = averageHeight / static_cast<double>(detResults.size());
 
-			stringStream << DnnData->recognizer.recognize(cropped) << " ";
+			std::sort(detResults.begin(), detResults.end(), CompareQuadrangles(averageHeight * 0.5));
 		}
-		polylines(frame, detResults, true, Scalar(0, 255, 0), 2);
-	}
 
-	RecognizedText = stringStream.str();
+		std::stringstream stringStream;
 
-	ImageTex.LoadBGR(frame);
+		if (!detResults.empty())
+		{
+			int countProgress = 0;
+
+			Mat recInput;
+			cvtColor(frame, recInput, cv::COLOR_BGR2GRAY);
+
+			auto fourPointsTransform = [](const Mat& frame, const Point2f vertices[], Mat& result)
+			{
+				const Size outputSize = Size(100, 32);
+				const Point2f targetVertices[4] = {
+					Point(0, outputSize.height - 1),
+					Point(0, 0), Point(outputSize.width - 1, 0),
+					Point(outputSize.width - 1, outputSize.height - 1)
+				};
+				const Mat rotationMatrix = getPerspectiveTransform(vertices, targetVertices);
+				warpPerspective(frame, result, rotationMatrix, outputSize);
+			};
+
+			float prevY = 0.0f;
+			for (auto& quadrangle : detResults)
+			{
+				std::vector<Point2f> quadrangle_2f;
+				quadrangle_2f.reserve(4);
+				for (int j = 0; j < 4; j++)
+					quadrangle_2f.emplace_back(quadrangle[j]);
+
+				Mat cropped;
+				fourPointsTransform(recInput, &quadrangle_2f[0], cropped);
+
+				if (prevY > 0)
+				{
+					if (quadrangle_2f[1].y > prevY)
+					{
+						stringStream << "\n";
+					}
+				}
+				prevY = quadrangle_2f[3].y;
+
+				stringStream << DnnData->recognizer.recognize(cropped) << " ";
+				Progress = static_cast<float>(countProgress) / detResults.size();
+				countProgress++;
+			}
+			polylines(frame, detResults, true, Scalar(0, 255, 0), 2);
+		}
+
+		SRecognitionResult result;
+		result.RecognizedText = stringStream.str();
+		result.Image = std::move(frame);
+		return result;
+	};
+
+	return std::async(std::launch::async, task);
 }

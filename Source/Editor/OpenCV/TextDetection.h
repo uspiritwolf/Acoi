@@ -7,6 +7,12 @@
 
 struct SDnnData;
 
+struct SRecognitionResult
+{
+	cv::Mat Image;
+	std::string RecognizedText;
+};
+
 class ETextDetection : public EditorInterface
 {
 	bool Visibility = false;
@@ -19,7 +25,11 @@ class ETextDetection : public EditorInterface
 
 	std::string ImagePath;
 
-	FileDialog FdInstance;
+	Utils::OpenFileFuture DetectorOpenFileFuture;
+
+	Utils::OpenFileFuture RecognizerOpenFileFuture;
+
+	Utils::OpenFileFuture ImageOpenFileFuture;
 
 	std::string LastError;
 
@@ -27,9 +37,15 @@ class ETextDetection : public EditorInterface
 
 	std::string RecognizedText;
 
+	std::future<SRecognitionResult> RecognitionFuture;
+
+	float Progress = 0.0f;
+
 public:
 
 	ETextDetection();
+
+	void Update();
 
 	void Render() override;
 
@@ -45,7 +61,5 @@ private:
 
 	void RenderImage();
 
-	void LoadImgEx(const std::string& imagePath);
-
-	void LoadImg(const std::string& imagePath);
+	std::future<SRecognitionResult> LoadAndRecognize(const std::string& imagePath);
 };
