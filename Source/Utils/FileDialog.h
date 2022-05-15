@@ -29,13 +29,14 @@ public:
 
 	FileDialog& operator=(FileDialog&& move) noexcept
 	{
-		Background = std::move(move.Background);
+		std::swap(Background, move.Background);
 		return *this;
 	}
 
 	FileDialog(FileDialog&& move) noexcept
-		: Background(std::move(move.Background))
-	{}
+	{
+		std::swap(Background, move.Background);
+	}
 
 	~FileDialog();
 

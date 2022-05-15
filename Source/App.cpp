@@ -44,7 +44,6 @@ struct ScopeFpsLock
 
 	double FrameTime = 0.0;
 	double CurrentTime = 0.0;
-	double IdleTime = 0.0;
 
 	bool MustRender = false;
 
@@ -67,7 +66,6 @@ struct ScopeFpsLock
 			}
 			else
 			{
-				IdleTime = newFrameTime;
 				MustRender = false;
 			}
 		}
@@ -77,6 +75,11 @@ struct ScopeFpsLock
 			FrameTime = LockFrameTime;
 			MustRender = true;
 		}
+	}
+
+	double GetWaitTime(double time, double step) const
+	{
+		return (CurrentTime + LockFrameTime * step) - time;
 	}
 
 	operator bool() const 
@@ -132,7 +135,15 @@ void App::Run(TUserRenderCallback userRenderCallback)
 	{
 		while (!glfwWindowShouldClose(Window))
 		{
-			glfwPollEvents();
+			const double wait = FpsLock->GetWaitTime(glfwGetTime(), 0.8);
+			if (wait > 0)
+			{
+				glfwWaitEventsTimeout(wait);
+			}
+			else
+			{
+				glfwPollEvents();
+			}
 			UpdateWindow();
 		}
 	}
@@ -243,6 +254,9 @@ void App::CreateImGui()
 			ImGuiStyle& style = ImGui::GetStyle();
 			style.FrameRounding = 5.0f;
 			style.PopupRounding = 3.0f;
+			style.AntiAliasedFill = true;
+			style.AntiAliasedLines = true;
+			style.AntiAliasedLinesUseTex = true;
 		}
 
 		if (ImGui_ImplGlfw_InitForOpenGL(Window, true) == false)

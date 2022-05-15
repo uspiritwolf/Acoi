@@ -38,7 +38,8 @@ add_executable (VoA
  ${IMGUI_SRC}
  ${IMGUI_HEADER} 
  ${UTILS_SOURCES}
- ${EDITOR_SOURCES})
+ ${EDITOR_SOURCES}
+ ${GRAPHICS_SOURCES})
 
 target_link_libraries(VoA glfw)
 

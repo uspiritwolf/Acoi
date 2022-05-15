@@ -15,10 +15,10 @@ void EEditor::Render()
 	{
 		if(ImGui::BeginMenu("OpenCV"))
 		{
-			const bool isTextDetectionVisibled = TextDetection->IsVisible();
-			if(ImGui::MenuItem("DNN: Text Detection", nullptr, isTextDetectionVisibled))
+			const bool isTextDetectionVisible = TextDetection->IsVisible();
+			if(ImGui::MenuItem("DNN: Text Detection", nullptr, isTextDetectionVisible))
 			{
-				isTextDetectionVisibled ? TextDetection->Hide() : TextDetection->Show();
+				isTextDetectionVisible ? TextDetection->Hide() : TextDetection->Show();
 			}
 
 			ImGui::EndMenu();
