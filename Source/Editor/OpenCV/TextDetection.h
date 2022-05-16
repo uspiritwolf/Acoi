@@ -49,9 +49,7 @@ public:
 
 	ETextDetection();
 
-	void Update();
-
-	void Render() override;
+	void Update() override;
 
 	void Show() override;
 
@@ -60,6 +58,8 @@ public:
 	bool IsVisible() override;
 
 private:
+
+	void Render();
 
 	void RenderError();
 

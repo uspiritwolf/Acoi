@@ -9,7 +9,7 @@ EEditor::EEditor()
 {
 }
 
-void EEditor::Render()
+void EEditor::Update()
 {
 	if(ImGui::BeginMainMenuBar())
 	{
@@ -37,7 +37,7 @@ void EEditor::Render()
 		ImGui::EndMainMenuBar();
 	}
 
-	RenderChilds();
+	UpdateChildren();
 
 	if(ShowDemoImgui)
 	{
@@ -66,13 +66,13 @@ bool EEditor::IsVisible()
 	return true; /* always showed */
 }
 
-void EEditor::RenderChilds() const
+void EEditor::UpdateChildren() const
 {
 	for(auto& child : ChildEditor)
 	{
 		if(child->IsVisible())
 		{
-			child->Render();
+			child->Update();
 		}
 	}
 }

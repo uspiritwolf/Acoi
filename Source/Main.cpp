@@ -11,6 +11,6 @@ int main(int argc, char* argv[])
 {
 	App app;
 	EEditor editor;
-	app.Run([&editor] { editor.Render(); });
+	app.Run([&editor] { editor.Update(); });
 	return 0;
 }

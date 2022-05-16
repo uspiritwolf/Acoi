@@ -98,6 +98,8 @@ void ETextDetection::Update()
 			LastError = ex.what();
 		}
 	}
+
+	Render();
 }
 
 void ETextDetection::Render()
@@ -107,8 +109,6 @@ void ETextDetection::Render()
 		ImGui::End();
 		return;
 	}
-
-	Update();
 
 	if(ImGui::BeginMenuBar())
 	{

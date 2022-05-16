@@ -20,7 +20,7 @@ public:
 
 	~EEditor() override = default;
 
-	void Render() override;
+	void Update() override;
 
 	void AddChildEditor(EditorInterfaceUPtr editor);
 
@@ -40,5 +40,5 @@ public:
 
 private:
 
-	void RenderChilds() const;
+	void UpdateChildren() const;
 };
