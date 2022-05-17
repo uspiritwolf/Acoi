@@ -28,7 +28,7 @@ public:
 	Type* CreateChildEditor()
 	{
 		Type* ptr = new Type(Args...);
-		AddChildEditor(std::unique_ptr<ETextDetection>(ptr));
+		AddChildEditor(std::unique_ptr<EditorInterface>(ptr));
 		return ptr;
 	}
 
