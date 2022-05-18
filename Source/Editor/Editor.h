@@ -3,14 +3,15 @@
 #include "EditorInterface.h"
 
 class ETextDetection;
-
-using EditorInterfaceUPtr = std::unique_ptr<EditorInterface>;
+class EFaceDetection;
 
 class EEditor : public EditorInterface
 {
 	std::vector<EditorInterfaceUPtr> ChildEditor;
 
 	ETextDetection* TextDetection = nullptr;
+
+	EFaceDetection* FaceDetection = nullptr;
 
 	bool ShowDemoImgui = false;
 

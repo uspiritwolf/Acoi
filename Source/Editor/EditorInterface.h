@@ -18,3 +18,5 @@ public:
 
 	virtual bool IsVisible() = 0;
 };
+
+using EditorInterfaceUPtr = std::unique_ptr<EditorInterface>;

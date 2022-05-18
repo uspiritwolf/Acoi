@@ -2,12 +2,37 @@
 #include "Editor.h"
 
 #include "OpenCV/TextDetection.h"
+#include "OpenCV/FaceDetection.h"
 
 EEditor::EEditor()
 	: ChildEditor()
 	, TextDetection(CreateChildEditor<ETextDetection>())
+	, FaceDetection(CreateChildEditor<EFaceDetection>())
 {
 }
+
+struct SSwitcherVisibility
+{
+	const char* Name = nullptr;
+
+	EditorInterface* Editor = nullptr;
+
+	SSwitcherVisibility(const char* name, EditorInterface* editor)
+		: Name(name)
+		, Editor(editor)
+	{
+
+	}
+
+	void Render()
+	{
+		const bool isVisible = Editor->IsVisible();
+		if (ImGui::MenuItem(Name, nullptr, isVisible))
+		{
+			isVisible ? Editor->Hide() : Editor->Show();
+		}
+	}
+};
 
 void EEditor::Update()
 {
@@ -15,12 +40,9 @@ void EEditor::Update()
 	{
 		if(ImGui::BeginMenu("OpenCV"))
 		{
-			const bool isTextDetectionVisible = TextDetection->IsVisible();
-			if(ImGui::MenuItem("DNN: Text Detection", nullptr, isTextDetectionVisible))
-			{
-				isTextDetectionVisible ? TextDetection->Hide() : TextDetection->Show();
-			}
-
+			SSwitcherVisibility("DNN: Text Detection", TextDetection).Render();
+			SSwitcherVisibility("DNN: Face Detection", FaceDetection).Render();
+			
 			ImGui::EndMenu();
 		}
 
@@ -30,7 +52,6 @@ void EEditor::Update()
 			{
 				ShowDemoImgui = !ShowDemoImgui;
 			}
-
 			ImGui::EndMenu();
 		}
 

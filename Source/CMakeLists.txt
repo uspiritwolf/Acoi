@@ -29,7 +29,8 @@ set(UTILS_SOURCES
 set(EDITOR_SOURCES
  "Editor/Editor.h" "Editor/Editor.cpp"
  "Editor/EditorInterface.h"
- "Editor/OpenCV/TextDetection.h" "Editor/OpenCV/TextDetection.cpp")
+ "Editor/OpenCV/TextDetection.h" "Editor/OpenCV/TextDetection.cpp"
+ "Editor/OpenCV/FaceDetection.h" "Editor/OpenCV/FaceDetection.cpp")
 
 add_executable (Acoi
  "Core.h"
