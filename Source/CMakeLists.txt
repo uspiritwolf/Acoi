@@ -1,5 +1,7 @@
 ﻿cmake_minimum_required (VERSION 3.16)
 
+set(CXX_STANDARD_REQUIRED TRUE)
+
 set(IMGUI_PATH "imgui")
 
 set(OPENCV_HEADERS 
@@ -60,6 +62,7 @@ find_package(OpenGL REQUIRED)
 
 target_link_libraries(Acoi OpenGL::GL)
 
+set_property(TARGET Acoi PROPERTY CXX_STANDARD 17)
 
 IF(WIN32)
 	set_target_properties(Acoi PROPERTIES WIN32_EXECUTABLE TRUE)
