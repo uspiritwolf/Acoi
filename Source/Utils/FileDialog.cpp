@@ -11,6 +11,8 @@
 
 using namespace Utils;
 
+namespace fs = std::filesystem;
+
 #if defined(WIN32)
 struct SWin32FileDialog
 {
@@ -18,11 +20,20 @@ struct SWin32FileDialog
 	
 	const char* Filter;
 
-	SWin32FileDialog(GLFWwindow* win, const char* filter)
+	std::string InitialDir;
+
+	SWin32FileDialog(GLFWwindow* win, const char* filter, const char* initialDir = nullptr)
 		: Window(win)
 		, Filter(filter)
 	{
-		
+		if(initialDir == nullptr)
+		{
+			InitialDir = fs::current_path().string();
+		}
+		else
+		{
+			InitialDir = initialDir;
+		}
 	}
 
 	SOpenFileResult operator()() const
@@ -40,7 +51,7 @@ struct SWin32FileDialog
 		ofn.nFilterIndex = 1;
 		ofn.lpstrFileTitle = nullptr;
 		ofn.nMaxFileTitle = 0;
-		ofn.lpstrInitialDir = nullptr;
+		ofn.lpstrInitialDir = InitialDir.c_str();
 		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 		const bool ok = GetOpenFileNameA(&ofn);
 
@@ -70,11 +81,11 @@ struct SWin32FileDialog
 };
 #endif
 
-OpenFileFuture Utils::OpenFileDialog(const char* filter)
+OpenFileFuture Utils::OpenFileDialog(const char* filter, const char* initialDir)
 {
 	GLFWwindow* wnd = App::GetInstance()->GetWindow();
 
 #if defined(WIN32)
-		return std::async(std::launch::async, SWin32FileDialog(wnd, filter));
+		return std::async(std::launch::async, SWin32FileDialog(wnd, filter, initialDir));
 #endif
 }

@@ -9,6 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <future>
+#include <filesystem>
 
 #if defined(WIN32)
 #include <Windows.h>

@@ -19,6 +19,6 @@ namespace Utils
 
 	using OpenFileFuture = std::future<SOpenFileResult>;
 
-	OpenFileFuture OpenFileDialog(const char* filter = "All Files\0*.*\0");
+	OpenFileFuture OpenFileDialog(const char* filter = "All Files\0*.*\0", const char* initialDir = nullptr);
 
 }
