@@ -14,3 +14,6 @@ add_subdirectory ("ThirdParty/glfw")
 add_subdirectory ("ThirdParty/opencv")
 
 add_subdirectory ("Source")
+
+file(COPY "${OpenCV_SOURCE_DIR}/data/haarcascades/haarcascade_frontalface_alt.xml" DESTINATION "${CMAKE_BINARY_DIR}/bin")
+file(COPY "${OpenCV_SOURCE_DIR}/data/haarcascades/haarcascade_eye_tree_eyeglasses.xml" DESTINATION "${CMAKE_BINARY_DIR}/bin")
